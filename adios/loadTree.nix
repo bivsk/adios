@@ -221,6 +221,8 @@ let
     let
       errorPrefix = "in module '${path}'";
       computeModuleOptions = computeOptions self.options self.path;
+
+      result = callFunction self.impl self.args;
       self = {
         path = if path == "" then "/" else path;
         options = checkAttrsOfType "${errorPrefix}: while checking 'options'" types.modules.option (
@@ -262,31 +264,29 @@ let
             def.impl;
         ${if def ? impl then "__functor" else null} =
           _: implParams:
-          callFunction self.impl (
+          if implParams == { } then
             # Reuse existing args if impl isn't being passed anything new
-            if implParams == { } then
-              self.args
-            else
-              let
-                # Recompute args fixpoint with passed params
-                args = {
-                  inherit (self.args) inputs;
-                  options =
-                    computeModuleOptions args "while calling '${self.path}'" (
-                      if evalParams ? ${self.path} then
-                        mergeOptionsUnchecked self.options evalParams.${self.path} implParams
-                      else
-                        implParams
-                    )
-                    # Current module necessarily defines a functor - include
-                    # it in the computed args
-                    // {
-                      inherit (self) __functor;
-                    };
-                };
-              in
-              args
-          );
+            result
+          else
+            let
+              # Recompute args fixpoint with passed params
+              args = {
+                inherit (self.args) inputs;
+                options =
+                  computeModuleOptions args "while calling '${self.path}'" (
+                    if evalParams ? ${self.path} then
+                      mergeOptionsUnchecked self.options evalParams.${self.path} implParams
+                    else
+                      implParams
+                  )
+                  # Current module necessarily defines a functor - include
+                  # it in the computed args
+                  // {
+                    inherit (self) __functor;
+                  };
+              };
+            in
+            callFunction self.impl args;
       };
     in
     self;
